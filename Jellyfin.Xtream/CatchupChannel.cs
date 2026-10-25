@@ -36,12 +36,12 @@ namespace Jellyfin.Xtream;
 /// </summary>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
-public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtreamClient) : IChannel, IDisableMediaSourceDisplay
+public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtreamClient) : IChannel, IDisableMediaSourceDisplay, IHasCacheKey
 {
     private readonly ILogger<CatchupChannel> _logger = logger;
 
     /// <inheritdoc />
-    public string? Name => "Xtream Catch-up";
+    public string? Name => Plugin.ChannelName(config => config.CatchupChannelName, "Xtream Catch-up");
 
     /// <inheritdoc />
     public string? Description => "Rewatch IPTV streamed from the Xtream-compatible server.";
@@ -246,6 +246,10 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
         };
         return result;
     }
+
+    /// <inheritdoc />
+    public string? GetCacheKey(string? userId) =>
+        Plugin.Instance.ResponseGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)

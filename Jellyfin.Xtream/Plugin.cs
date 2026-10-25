@@ -79,6 +79,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public static Plugin Instance => _instance ?? throw new InvalidOperationException("Plugin instance not available");
 
     /// <summary>
+    /// Gets a value that changes each time the provider could not give a usable answer.
+    /// Channels add it to their cache key so that Jellyfin asks again instead of keeping a degraded answer.
+    /// </summary>
+    public int ResponseGeneration => XtreamClient.DegradedGeneration;
+
+    /// <summary>
     /// Gets the stream service instance.
     /// </summary>
     public StreamService StreamService { get; init; }
@@ -89,6 +95,19 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Gets the task service instance.
     /// </summary>
     public TaskService TaskService { get; init; }
+
+    /// <summary>
+    /// Gets the display name of a channel: the configured name, or the default one when none is set.
+    /// </summary>
+    /// <param name="configured">Reads the configured name.</param>
+    /// <param name="fallback">The default name.</param>
+    /// <returns>The name shown in Jellyfin.</returns>
+    public static string ChannelName(Func<PluginConfiguration, string?> configured, string fallback)
+    {
+        ArgumentNullException.ThrowIfNull(configured);
+        string? name = _instance is null ? null : configured(_instance.Configuration);
+        return string.IsNullOrWhiteSpace(name) ? fallback : name.Trim();
+    }
 
     private static PluginPageInfo CreateStatic(string name) => new()
     {

@@ -349,6 +349,17 @@ public partial class StreamService(IXtreamClient xtreamClient)
     }
 
     /// <summary>
+    /// Gets the identifier of the media source of an Xtream stream.
+    /// It must not be a GUID: since Jellyfin 12, a media source whose identifier is a GUID unknown
+    /// to the library is dropped, which left episodes and movies without any source to play.
+    /// </summary>
+    /// <param name="type">The stream media type.</param>
+    /// <param name="id">The unique identifier of the stream.</param>
+    /// <returns>The media source identifier.</returns>
+    public static string MediaSourceId(StreamType type, int id) =>
+        string.Create(CultureInfo.InvariantCulture, $"xtream-{(int)type}-{id}");
+
+    /// <summary>
     /// Gets the media source information for the given Xtream stream.
     /// </summary>
     /// <param name="type">The stream media type.</param>
@@ -399,7 +410,7 @@ public partial class StreamService(IXtreamClient xtreamClient)
         {
             Container = extension,
             EncoderProtocol = MediaProtocol.Http,
-            Id = ToGuid(MediaSourcePrefix, (int)type, id, 0).ToString(),
+            Id = MediaSourceId(type, id),
             IsInfiniteStream = isLive,
             IsRemote = true,
             MediaStreams =

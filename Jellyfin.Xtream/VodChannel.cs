@@ -35,10 +35,10 @@ namespace Jellyfin.Xtream;
 /// The Xtream Codes API channel.
 /// </summary>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
-public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSourceDisplay
+public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSourceDisplay, IHasCacheKey
 {
     /// <inheritdoc />
-    public string? Name => "Xtream Video On-Demand";
+    public string? Name => Plugin.ChannelName(config => config.VodChannelName, "Xtream Video On-Demand");
 
     /// <inheritdoc />
     public string? Description => "Video On-Demand streamed from the Xtream-compatible server.";
@@ -168,6 +168,10 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
         };
         return result;
     }
+
+    /// <inheritdoc />
+    public string? GetCacheKey(string? userId) =>
+        Plugin.Instance.ResponseGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)

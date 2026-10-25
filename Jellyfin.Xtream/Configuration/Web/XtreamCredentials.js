@@ -14,6 +14,9 @@ export default function (view) {
       view.querySelector('#Username').value = config.Username;
       view.querySelector('#Password').value = config.Password;
       view.querySelector('#UserAgent').value = config.UserAgent;
+      view.querySelector('#VodChannelName').value = config.VodChannelName || '';
+      view.querySelector('#SeriesChannelName').value = config.SeriesChannelName || '';
+      view.querySelector('#CatchupChannelName').value = config.CatchupChannelName || '';
       Dashboard.hideLoadingMsg();
     });
 
@@ -59,6 +62,9 @@ export default function (view) {
         config.Username = view.querySelector('#Username').value;
         config.Password = view.querySelector('#Password').value;
         config.UserAgent = view.querySelector('#UserAgent').value;
+        config.VodChannelName = view.querySelector('#VodChannelName').value.trim();
+        config.SeriesChannelName = view.querySelector('#SeriesChannelName').value.trim();
+        config.CatchupChannelName = view.querySelector('#CatchupChannelName').value.trim();
         ApiClient.updatePluginConfiguration(pluginId, config).then((result) => {
           reloadStatus();
           Dashboard.processPluginConfigurationUpdateResult(result);

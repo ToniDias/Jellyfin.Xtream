@@ -45,6 +45,21 @@ public class PluginConfiguration : BasePluginConfiguration
     public string UserAgent { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the name of the Video On-Demand channel. Empty means the default name.
+    /// </summary>
+    public string VodChannelName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the Series channel. Empty means the default name.
+    /// </summary>
+    public string SeriesChannelName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the Catch-up channel. Empty means the default name.
+    /// </summary>
+    public string CatchupChannelName { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the Catch-up channel is visible.
     /// </summary>
     public bool IsCatchupVisible { get; set; }

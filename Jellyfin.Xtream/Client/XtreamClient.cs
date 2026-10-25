@@ -44,6 +44,11 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         Error = NullableEventHandler(logger),
     };
 
+    private readonly ResilientFetcher _fetcher = new(new ApiResponseCache(CacheDirectory, TimeProvider.System), TimeProvider.System, logger);
+
+    /// <inheritdoc />
+    public int DegradedGeneration => _fetcher.DegradedGeneration;
+
     public void UpdateUserAgent()
     {
         client.DefaultRequestHeaders.UserAgent.Clear();
@@ -94,86 +99,87 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
 
                 if (property != null && Nullable.GetUnderlyingType(property.PropertyType) != null)
                 {
-                    logger.LogDebug("Property `{0}` (`{1}` in JSON) is nullable, ignoring parsing error!", property.Name, jsonName);
-                    logger.LogDebug("Stack trace: {0}", new System.Diagnostics.StackTrace());
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        logger.LogDebug("Property `{0}` (`{1}` in JSON) is nullable, ignoring parsing error!", property.Name, jsonName);
+                        logger.LogDebug("Stack trace: {0}", new System.Diagnostics.StackTrace());
+                    }
+
                     args.ErrorContext.Handled = true;
                 }
             }
         };
     }
 
-    private async Task<T> QueryApi<T>(ConnectionInfo connectionInfo, string urlPath, CancellationToken cancellationToken)
+    private static string? CacheDirectory()
     {
-        Uri uri = new Uri(connectionInfo.BaseUrl + urlPath);
-        string jsonContent = await client.GetStringAsync(uri, cancellationToken).ConfigureAwait(false);
-        return JsonConvert.DeserializeObject<T>(jsonContent, _serializerSettings)!;
+        try
+        {
+            return System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "api-cache");
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
+    private Task<T> QueryApi<T>(
+        ConnectionInfo connectionInfo,
+        string query,
+        Func<T, bool> isUsable,
+        CancellationToken cancellationToken,
+        bool useCache = true,
+        int maxAttempts = ResilientFetcher.DefaultMaxAttempts)
+    {
+        Uri uri = new Uri($"{connectionInfo.BaseUrl}/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}{query}");
+
+        // The key identifies the account and the query, without the password.
+        string key = $"{connectionInfo.BaseUrl}|{connectionInfo.UserName}|{query}";
+        return _fetcher.FetchAsync(
+            key,
+            ct => client.GetStringAsync(uri, ct),
+            json => JsonConvert.DeserializeObject<T>(json, _serializerSettings)!,
+            isUsable,
+            useCache,
+            maxAttempts,
+            cancellationToken);
+    }
+
+    private static bool HasItems<TItem>(List<TItem>? items) => items is { Count: > 0 };
+
     public Task<PlayerApi> GetUserAndServerInfoAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-        QueryApi<PlayerApi>(
-          connectionInfo,
-          $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}",
-          cancellationToken);
+        QueryApi<PlayerApi>(connectionInfo, string.Empty, info => info is not null, cancellationToken, useCache: false, maxAttempts: 3);
 
     public Task<List<Series>> GetSeriesByCategoryAsync(ConnectionInfo connectionInfo, int categoryId, CancellationToken cancellationToken) =>
-         QueryApi<List<Series>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_series&category_id={categoryId}",
-           cancellationToken);
+        QueryApi<List<Series>>(connectionInfo, $"&action=get_series&category_id={categoryId}", HasItems, cancellationToken);
 
     public Task<SeriesStreamInfo> GetSeriesStreamsBySeriesAsync(ConnectionInfo connectionInfo, int seriesId, CancellationToken cancellationToken) =>
-         QueryApi<SeriesStreamInfo>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_series_info&series_id={seriesId}",
-           cancellationToken);
+        QueryApi<SeriesStreamInfo>(connectionInfo, $"&action=get_series_info&series_id={seriesId}", series => series?.Episodes is { Count: > 0 }, cancellationToken);
 
     public Task<List<StreamInfo>> GetVodStreamsByCategoryAsync(ConnectionInfo connectionInfo, int categoryId, CancellationToken cancellationToken) =>
-         QueryApi<List<StreamInfo>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_vod_streams&category_id={categoryId}",
-           cancellationToken);
+        QueryApi<List<StreamInfo>>(connectionInfo, $"&action=get_vod_streams&category_id={categoryId}", HasItems, cancellationToken);
 
     public Task<VodStreamInfo> GetVodInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken) =>
-         QueryApi<VodStreamInfo>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_vod_info&vod_id={streamId}",
-           cancellationToken);
+        QueryApi<VodStreamInfo>(connectionInfo, $"&action=get_vod_info&vod_id={streamId}", vod => vod?.Info is not null || vod?.MovieData is not null, cancellationToken);
 
     public Task<List<StreamInfo>> GetLiveStreamsAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-         QueryApi<List<StreamInfo>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_live_streams",
-           cancellationToken);
+        QueryApi<List<StreamInfo>>(connectionInfo, "&action=get_live_streams", HasItems, cancellationToken);
 
     public Task<List<StreamInfo>> GetLiveStreamsByCategoryAsync(ConnectionInfo connectionInfo, int categoryId, CancellationToken cancellationToken) =>
-         QueryApi<List<StreamInfo>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_live_streams&category_id={categoryId}",
-           cancellationToken);
+        QueryApi<List<StreamInfo>>(connectionInfo, $"&action=get_live_streams&category_id={categoryId}", HasItems, cancellationToken);
 
     public Task<List<Category>> GetSeriesCategoryAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-         QueryApi<List<Category>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_series_categories",
-           cancellationToken);
+        QueryApi<List<Category>>(connectionInfo, "&action=get_series_categories", HasItems, cancellationToken);
 
     public Task<List<Category>> GetVodCategoryAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-         QueryApi<List<Category>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_vod_categories",
-           cancellationToken);
+        QueryApi<List<Category>>(connectionInfo, "&action=get_vod_categories", HasItems, cancellationToken);
 
     public Task<List<Category>> GetLiveCategoryAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
-         QueryApi<List<Category>>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_live_categories",
-           cancellationToken);
+        QueryApi<List<Category>>(connectionInfo, "&action=get_live_categories", HasItems, cancellationToken);
 
+    // The guide can legitimately be empty and is cached by the Live TV service: one attempt, no cache.
     public Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken) =>
-         QueryApi<EpgListings>(
-           connectionInfo,
-           $"/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}&action=get_simple_data_table&stream_id={streamId}",
-           cancellationToken);
+        QueryApi<EpgListings>(connectionInfo, $"&action=get_simple_data_table&stream_id={streamId}", _ => true, cancellationToken, useCache: false, maxAttempts: 1);
 
     /// <summary>
     /// Dispose the HTTP client.

@@ -24,6 +24,11 @@ namespace Jellyfin.Xtream.Client;
 
 public interface IXtreamClient
 {
+    /// <summary>
+    /// Gets a counter increased each time a query ends without a usable response from the provider.
+    /// </summary>
+    int DegradedGeneration { get; }
+
     Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken);
 
     Task<List<Category>> GetLiveCategoryAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken);

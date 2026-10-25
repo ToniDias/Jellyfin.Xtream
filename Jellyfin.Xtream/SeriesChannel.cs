@@ -35,10 +35,10 @@ namespace Jellyfin.Xtream;
 /// The Xtream Codes API channel.
 /// </summary>
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
-public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMediaSourceDisplay
+public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMediaSourceDisplay, IHasCacheKey
 {
     /// <inheritdoc />
-    public string? Name => "Xtream Series";
+    public string? Name => Plugin.ChannelName(config => config.SeriesChannelName, "Xtream Series");
 
     /// <inheritdoc />
     public string? Description => "Series streamed from the Xtream-compatible server.";
@@ -279,6 +279,10 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
             TotalRecordCount = items.Count
         };
     }
+
+    /// <inheritdoc />
+    public string? GetCacheKey(string? userId) =>
+        Plugin.Instance.ResponseGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
     public bool IsEnabledFor(string userId)
