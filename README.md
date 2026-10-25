@@ -7,11 +7,11 @@
 
 The Jellyfin.Xtream plugin can be used to integrate the content provided by an [Xtream-compatible API](https://xtream-ui.org/api-xtreamui-xtreamcode/) in your [Jellyfin](https://jellyfin.org/) instance.
 
-## This fork: Jellyfin 12 support (0.9.0)
+## This fork: Jellyfin 12 support (0.9.1)
 
 This fork of [Kevinjil/Jellyfin.Xtream](https://github.com/Kevinjil/Jellyfin.Xtream) targets **Jellyfin 12.3** (.NET 10) and adds:
 
-* **Playback fix for Jellyfin 12.** Jellyfin 12 drops media sources whose identifier is a GUID unknown to the library, so series episodes and movies had no source left and playback failed with `Index was out of range`. Media sources now use a non-GUID identifier (`xtream-<type>-<id>`).
+* **Playback fix for Jellyfin 12.** Jellyfin 12 drops media sources whose identifier is a GUID unknown to the library (series episodes and movies had no source left: `Index was out of range`) and requires a GUID when streaming (`Unrecognized Guid format`). Movies, episodes and catch-up now leave the source identifier empty, so Jellyfin gives them the identifier of the item; items saved by older versions are updated once (their modification date is set to the date of this source format). Live TV keeps its stable GUID.
 * **Resilient provider queries.** Some providers answer the same request with an empty list most of the time. Lists are retried (up to 10 attempts), the last usable answer is kept in memory and on disk (`api-cache` in the plugin data folder) and served when the provider gives nothing usable. Channels expose a cache key that changes after a degraded answer, so Jellyfin does not keep an empty folder for hours (its channel cache lasts 3 hours).
 * **Custom folder names** for Video On-Demand, Series and Catch-up (Credentials page, "Display names").
 

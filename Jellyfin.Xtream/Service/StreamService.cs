@@ -91,6 +91,12 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// </summary>
     public const int EpgPrefix = 0x5d774c3f;
 
+    /// <summary>
+    /// The date of the current media source format. Media items report it as their modification date,
+    /// so Jellyfin saves their media sources again once after an upgrade that changed them.
+    /// </summary>
+    public static readonly DateTime MediaSourceFormatDate = new(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
+
     private static readonly Regex _tagRegex = TagRegex();
 
     /// <summary>
@@ -350,14 +356,16 @@ public partial class StreamService(IXtreamClient xtreamClient)
 
     /// <summary>
     /// Gets the identifier of the media source of an Xtream stream.
-    /// It must not be a GUID: since Jellyfin 12, a media source whose identifier is a GUID unknown
-    /// to the library is dropped, which left episodes and movies without any source to play.
+    /// Channel media (movies, episodes, catch-up) get an empty identifier: Jellyfin 12 then gives the source
+    /// the identifier of the item, which is the only GUID it both keeps (unknown GUIDs are dropped, leaving
+    /// nothing to play) and accepts when streaming (non-GUID identifiers fail with "Unrecognized Guid format").
+    /// Live TV keeps a stable GUID, used to share a restream between viewers.
     /// </summary>
     /// <param name="type">The stream media type.</param>
     /// <param name="id">The unique identifier of the stream.</param>
     /// <returns>The media source identifier.</returns>
     public static string MediaSourceId(StreamType type, int id) =>
-        string.Create(CultureInfo.InvariantCulture, $"xtream-{(int)type}-{id}");
+        type == StreamType.Live ? ToGuid(MediaSourcePrefix, (int)type, id, 0).ToString() : string.Empty;
 
     /// <summary>
     /// Gets the media source information for the given Xtream stream.

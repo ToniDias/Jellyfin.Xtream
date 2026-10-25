@@ -226,6 +226,7 @@ public class CatchupChannel(ILogger<CatchupChannel> logger, IXtreamClient xtream
             {
                 ContentType = ChannelMediaContentType.TvExtra,
                 DateCreated = epg.Start,
+                DateModified = StreamService.MediaSourceFormatDate,
                 Id = StreamService.ToGuid(StreamService.CatchupStreamPrefix, channel.StreamId, epg.Id, day).ToString(),
                 IsLiveStream = false,
                 MediaSources = sources,

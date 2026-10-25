@@ -8,12 +8,12 @@
     "owner": "ToniDias",
     "versions": [
       {
-        "changelog": "Jellyfin 12.3 support (.NET 10). Fix playback of series and movies under Jellyfin 12 (non-GUID media source ids). Retry empty or failed provider answers and serve the last usable one from a memory and disk cache. Custom names for the Video On-Demand, Series and Catch-up folders.",
-        "checksum": "7b59f1c78e239f2d8fdd9fb251537707",
-        "sourceUrl": "https://github.com/ToniDias/Jellyfin.Xtream/releases/download/v0.9.0.0/jellyfin-xtream_0.9.0.0.zip",
+        "changelog": "Jellyfin 12.3 support (.NET 10). Fix playback of series, movies and catch-up under Jellyfin 12: their media sources now carry the identifier of the item (Jellyfin 12 drops unknown GUIDs and needs a GUID to stream); items saved by older versions are updated once. Retry empty or failed provider answers and serve the last usable one from a memory and disk cache. Custom names for the Video On-Demand, Series and Catch-up folders.",
+        "checksum": "5a6e2c67ce6713c215a4833550839697",
+        "sourceUrl": "https://github.com/ToniDias/Jellyfin.Xtream/releases/download/v0.9.1.0/jellyfin-xtream_0.9.1.0.zip",
         "targetAbi": "12.3.0.0",
-        "timestamp": "2026-10-25T23:45:00Z",
-        "version": "0.9.0.0"
+        "timestamp": "2026-10-26T00:30:00Z",
+        "version": "0.9.1.0"
       }
     ]
   }
