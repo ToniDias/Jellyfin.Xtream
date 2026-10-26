@@ -92,12 +92,24 @@ public partial class StreamService(IXtreamClient xtreamClient)
     public const int EpgPrefix = 0x5d774c3f;
 
     /// <summary>
+    /// The id prefix for VOD category group folders.
+    /// </summary>
+    public const int VodGroupPrefix = 0x5d774c40;
+
+    /// <summary>
+    /// The id prefix for series category group folders.
+    /// </summary>
+    public const int SeriesGroupPrefix = 0x5d774c41;
+
+    /// <summary>
     /// The date of the current media source format. Media items report it as their modification date,
     /// so Jellyfin saves their media sources again once after an upgrade that changed them.
     /// </summary>
     public static readonly DateTime MediaSourceFormatDate = new(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
 
     private static readonly Regex _tagRegex = TagRegex();
+
+    private static readonly Regex _languagePrefixRegex = LanguagePrefixRegex();
 
     /// <summary>
     /// Parses tags in the name of a stream entry.
@@ -111,13 +123,13 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// These tags are parsed and returned as separate strings.
     /// The returned title is cleaned from tags and trimmed.
     /// </summary>
-    /// <param name="name">The name which should be parsed.</param>
+    /// <param name="name">The name which should be parsed. Providers sometimes send none (null).</param>
     /// <returns>A <see cref="ParsedName"/> struct containing the cleaned title and parsed tags.</returns>
-    public static ParsedName ParseName(string name)
+    public static ParsedName ParseName(string? name)
     {
         List<string> tags = [];
         string title = _tagRegex.Replace(
-            name,
+            name ?? string.Empty,
             (match) =>
             {
                 for (int i = 1; i < match.Groups.Count; ++i)
@@ -131,6 +143,14 @@ public partial class StreamService(IXtreamClient xtreamClient)
 
                 return string.Empty;
             });
+
+        // Language prefix of the form "FR - Title", as sent by some providers.
+        Match language = _languagePrefixRegex.Match(title);
+        if (language.Success)
+        {
+            tags.Add(language.Groups[1].Value);
+            title = title[language.Length..];
+        }
 
         // Tag prefixes separated by the a character in the unicode Block Elements range
         int stripLength = 0;
@@ -469,4 +489,8 @@ public partial class StreamService(IXtreamClient xtreamClient)
     // Pipe variants: | (U+007C), │ (U+2502), ┃ (U+2503), ｜ (U+FF5C)
     [GeneratedRegex(@"\[([^\]]+)\]|[|│┃｜]\s*([^|│┃｜]+?)\s*[|│┃｜]")]
     private static partial Regex TagRegex();
+
+    // Matches a leading language code followed by a dash: "FR - ", "EN - ", "MULTI - "
+    [GeneratedRegex(@"^\s*(FR|EN|QC|DE|ES|IT|PT|NL|AR|TR|PL|JP|KR|IN|MULTI|VOSTFR|VF)\s+-\s+")]
+    private static partial Regex LanguagePrefixRegex();
 }

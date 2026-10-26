@@ -60,6 +60,12 @@ public class PluginConfiguration : BasePluginConfiguration
     public string CatchupChannelName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the folders grouping the VOD and Series categories, one rule per line: <c>Label: KEY1, KEY2</c>.
+    /// Empty means no grouping.
+    /// </summary>
+    public string CategoryGroups { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the Catch-up channel is visible.
     /// </summary>
     public bool IsCatchupVisible { get; set; }

@@ -1,7 +1,7 @@
 ---
 name: "Jellyfin Xtream"
 guid: "5d774c35-8567-46d3-a950-9bb8227a0c5d"
-version: "0.9.1.0"
+version: "0.10.0.0"
 targetAbi: "12.3.0.0"
 framework: "net10.0"
 overview: "Stream content from an Xtream-compatible server."
@@ -12,4 +12,4 @@ owner: "Kevinjil"
 artifacts:
   - "Jellyfin.Xtream.dll"
 changelog: >
-  Jellyfin 12.3 support (.NET 10). Fix playback of series, movies and catch-up under Jellyfin 12: their media sources now carry the identifier of the item (Jellyfin 12 drops unknown GUIDs and needs a GUID to stream); items saved by older versions are updated once. Retry empty or failed provider answers and serve the last usable one from a memory and disk cache. Custom names for the Video On-Demand, Series and Catch-up folders.
+  0.10.0: Category folders (rules 'Name: KEY1, KEY2' group the VOD and Series categories, tags removed from their names); 'FR - Title' language prefixes become tags. Prefetch task (nightly and at startup) loads the selected categories into the cache, now fresh for 24 hours. Guide refresh protected: channels without a guide id are skipped, guide paused after 5 failures in a row, 15 s timeout. All queries paused for 10 minutes when the provider refuses one (401, 403, 429, 444, connection refused) instead of retrying. Live channels without a name no longer abort the channel list. 0.9.x: Jellyfin 12.3 support, playback fix (media sources carry the item identifier), resilient queries with a memory and disk cache, custom folder names.

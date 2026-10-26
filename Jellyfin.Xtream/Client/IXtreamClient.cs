@@ -29,6 +29,13 @@ public interface IXtreamClient
     /// </summary>
     int DegradedGeneration { get; }
 
+    /// <summary>
+    /// Asks the provider again for every query made until the returned scope is disposed,
+    /// even when a fresh answer is cached. Used by the catalog prefetch task.
+    /// </summary>
+    /// <returns>The refresh scope.</returns>
+    IDisposable StartCatalogRefresh();
+
     Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken);
 
     Task<List<Category>> GetLiveCategoryAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken);

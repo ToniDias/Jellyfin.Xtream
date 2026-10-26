@@ -44,10 +44,19 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         Error = NullableEventHandler(logger),
     };
 
+    private static readonly AsyncLocal<bool> _refreshing = new();
+
     private readonly ResilientFetcher _fetcher = new(new ApiResponseCache(CacheDirectory, TimeProvider.System), TimeProvider.System, logger);
 
     /// <inheritdoc />
     public int DegradedGeneration => _fetcher.DegradedGeneration;
+
+    /// <inheritdoc />
+    public IDisposable StartCatalogRefresh()
+    {
+        _refreshing.Value = true;
+        return new RefreshScope();
+    }
 
     public void UpdateUserAgent()
     {
@@ -129,7 +138,8 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         Func<T, bool> isUsable,
         CancellationToken cancellationToken,
         bool useCache = true,
-        int maxAttempts = ResilientFetcher.DefaultMaxAttempts)
+        int maxAttempts = ResilientFetcher.DefaultMaxAttempts,
+        int timeoutSeconds = 60)
     {
         Uri uri = new Uri($"{connectionInfo.BaseUrl}/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}{query}");
 
@@ -137,11 +147,17 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         string key = $"{connectionInfo.BaseUrl}|{connectionInfo.UserName}|{query}";
         return _fetcher.FetchAsync(
             key,
-            ct => client.GetStringAsync(uri, ct),
+            async ct =>
+            {
+                using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+                return await client.GetStringAsync(uri, timeout.Token).ConfigureAwait(false);
+            },
             json => JsonConvert.DeserializeObject<T>(json, _serializerSettings)!,
             isUsable,
             useCache,
             maxAttempts,
+            _refreshing.Value,
             cancellationToken);
     }
 
@@ -179,7 +195,7 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
 
     // The guide can legitimately be empty and is cached by the Live TV service: one attempt, no cache.
     public Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken) =>
-        QueryApi<EpgListings>(connectionInfo, $"&action=get_simple_data_table&stream_id={streamId}", _ => true, cancellationToken, useCache: false, maxAttempts: 1);
+        QueryApi<EpgListings>(connectionInfo, $"&action=get_simple_data_table&stream_id={streamId}", _ => true, cancellationToken, useCache: false, maxAttempts: 1, timeoutSeconds: 15);
 
     /// <summary>
     /// Dispose the HTTP client.
@@ -195,5 +211,10 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+    }
+
+    private sealed class RefreshScope : IDisposable
+    {
+        public void Dispose() => _refreshing.Value = false;
     }
 }

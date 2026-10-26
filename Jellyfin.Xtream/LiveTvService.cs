@@ -45,6 +45,8 @@ namespace Jellyfin.Xtream;
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
 public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory httpClientFactory, ILogger<LiveTvService> logger, IMemoryCache memoryCache, IXtreamClient xtreamClient) : ILiveTvService, ISupportsDirectStreamProvider
 {
+    private readonly EpgGuard _epgGuard = new(TimeProvider.System);
+
     /// <inheritdoc />
     public string Name => "Xtream Live";
 
@@ -58,6 +60,13 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
         List<ChannelInfo> items = [];
         foreach (StreamInfo channel in await plugin.StreamService.GetLiveStreamsWithOverrides(cancellationToken).ConfigureAwait(false))
         {
+            // Placeholders without a name (empty event slots) are not shown.
+            if (string.IsNullOrWhiteSpace(channel.Name))
+            {
+                continue;
+            }
+
+            _epgGuard.SetHasGuide(channel.StreamId, !string.IsNullOrWhiteSpace(channel.EpgChannelId));
             ParsedName parsed = StreamService.ParseName(channel.Name);
             items.Add(new ChannelInfo()
             {
@@ -173,8 +182,28 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
         {
             items = new List<ProgramInfo>();
             Plugin plugin = Plugin.Instance;
+            if (!_epgGuard.ShouldQuery(streamId))
             {
-                EpgListings epgs = await xtreamClient.GetEpgInfoAsync(plugin.Creds, streamId, cancellationToken).ConfigureAwait(false);
+                return items;
+            }
+
+            EpgListings epgs;
+            try
+            {
+                epgs = await xtreamClient.GetEpgInfoAsync(plugin.Creds, streamId, cancellationToken).ConfigureAwait(false);
+                _epgGuard.ReportSuccess();
+            }
+            catch (HttpRequestException ex)
+            {
+                if (_epgGuard.ReportFailure())
+                {
+                    logger.LogWarning(ex, "The provider refused {Count} guide requests in a row, guide paused for {Pause}", EpgGuard.MaxConsecutiveFailures, EpgGuard.Pause);
+                }
+
+                return items;
+            }
+
+            {
                 foreach (EpgInfo epg in epgs.Listings)
                 {
                     items.Add(new()

@@ -17,6 +17,7 @@ export default function (view) {
       view.querySelector('#VodChannelName').value = config.VodChannelName || '';
       view.querySelector('#SeriesChannelName').value = config.SeriesChannelName || '';
       view.querySelector('#CatchupChannelName').value = config.CatchupChannelName || '';
+      view.querySelector('#CategoryGroups').value = config.CategoryGroups || '';
       Dashboard.hideLoadingMsg();
     });
 
@@ -65,6 +66,7 @@ export default function (view) {
         config.VodChannelName = view.querySelector('#VodChannelName').value.trim();
         config.SeriesChannelName = view.querySelector('#SeriesChannelName').value.trim();
         config.CatchupChannelName = view.querySelector('#CatchupChannelName').value.trim();
+        config.CategoryGroups = view.querySelector('#CategoryGroups').value;
         ApiClient.updatePluginConfiguration(pluginId, config).then((result) => {
           reloadStatus();
           Dashboard.processPluginConfigurationUpdateResult(result);

@@ -102,6 +102,17 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
                 return await GetStreams(categoryId, cancellationToken).ConfigureAwait(false);
             }
 
+            if (prefix == StreamService.VodGroupPrefix)
+            {
+                IEnumerable<Category> categories = await Plugin.Instance.StreamService.GetVodCategories(cancellationToken).ConfigureAwait(false);
+                List<ChannelItemInfo> items = CategoryGroups.InGroup(
+                    categories,
+                    CategoryGroups.ParseRules(Plugin.Instance.Configuration.CategoryGroups),
+                    categoryId,
+                    StreamService.VodCategoryPrefix);
+                return new() { Items = items, TotalRecordCount = items.Count };
+            }
+
             return new ChannelItemResult()
             {
                 TotalRecordCount = 0,
@@ -149,8 +160,11 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
     private async Task<ChannelItemResult> GetCategories(CancellationToken cancellationToken)
     {
         IEnumerable<Category> categories = await Plugin.Instance.StreamService.GetVodCategories(cancellationToken).ConfigureAwait(false);
-        List<ChannelItemInfo> items = new List<ChannelItemInfo>(
-            categories.Select((Category category) => StreamService.CreateChannelItemInfo(StreamService.VodCategoryPrefix, category)));
+        List<ChannelItemInfo> items = CategoryGroups.TopLevel(
+            categories,
+            CategoryGroups.ParseRules(Plugin.Instance.Configuration.CategoryGroups),
+            StreamService.VodCategoryPrefix,
+            StreamService.VodGroupPrefix);
         return new()
         {
             Items = items,

@@ -103,6 +103,17 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
                 return await GetSeries(categoryId, cancellationToken).ConfigureAwait(false);
             }
 
+            if (prefix == StreamService.SeriesGroupPrefix)
+            {
+                IEnumerable<Category> categories = await Plugin.Instance.StreamService.GetSeriesCategories(cancellationToken).ConfigureAwait(false);
+                List<ChannelItemInfo> items = CategoryGroups.InGroup(
+                    categories,
+                    CategoryGroups.ParseRules(Plugin.Instance.Configuration.CategoryGroups),
+                    categoryId,
+                    StreamService.SeriesCategoryPrefix);
+                return new() { Items = items, TotalRecordCount = items.Count };
+            }
+
             if (prefix == StreamService.SeriesPrefix)
             {
                 return await GetSeasons(seriesId, cancellationToken).ConfigureAwait(false);
@@ -237,8 +248,11 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
     private async Task<ChannelItemResult> GetCategories(CancellationToken cancellationToken)
     {
         IEnumerable<Category> categories = await Plugin.Instance.StreamService.GetSeriesCategories(cancellationToken).ConfigureAwait(false);
-        List<ChannelItemInfo> items = new(
-            categories.Select((Category category) => StreamService.CreateChannelItemInfo(StreamService.SeriesCategoryPrefix, category)));
+        List<ChannelItemInfo> items = CategoryGroups.TopLevel(
+            categories,
+            CategoryGroups.ParseRules(Plugin.Instance.Configuration.CategoryGroups),
+            StreamService.SeriesCategoryPrefix,
+            StreamService.SeriesGroupPrefix);
         return new()
         {
             Items = items,

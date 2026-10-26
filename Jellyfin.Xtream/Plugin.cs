@@ -162,5 +162,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         TaskService.CancelIfRunningAndQueue(
             "Jellyfin.LiveTv",
             "Jellyfin.LiveTv.Channels.RefreshChannelsScheduledTask");
+
+        // Load the newly selected categories into the cache, so that browsing them is fast.
+        TaskService.CancelIfRunningAndQueue(
+            "Jellyfin.Xtream",
+            "Jellyfin.Xtream.Tasks.PrefetchCatalogTask");
     }
 }

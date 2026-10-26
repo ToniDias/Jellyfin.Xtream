@@ -14,7 +14,9 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 using System;
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -53,10 +55,23 @@ public sealed class ResilientFetcher(
 
     private int _degradedGeneration;
 
+    private long _pausedUntilTicks;
+
+    /// <summary>
+    /// Gets how long every query is paused after the provider refused one (blocked address, banned account).
+    /// </summary>
+    public static TimeSpan BlockedPause { get; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Gets a value indicating whether queries are paused because the provider refused a recent one.
+    /// </summary>
+    public bool IsPaused => time.GetUtcNow().UtcTicks < Interlocked.Read(ref _pausedUntilTicks);
+
     /// <summary>
     /// Gets or sets how long a cached response is served without asking the provider again.
+    /// The prefetch task refreshes the catalog every night, so browsing is served from the cache.
     /// </summary>
-    public TimeSpan FreshFor { get; set; } = TimeSpan.FromMinutes(15);
+    public TimeSpan FreshFor { get; set; } = TimeSpan.FromHours(24);
 
     /// <summary>
     /// Gets a counter increased each time a query ends without a usable response.
@@ -74,6 +89,7 @@ public sealed class ResilientFetcher(
     /// <param name="isUsable">Tells whether a parsed response can be trusted (for example, a non-empty list).</param>
     /// <param name="useCache">Whether responses are cached and served from the cache.</param>
     /// <param name="maxAttempts">The maximum number of attempts.</param>
+    /// <param name="refresh">Whether to ask the provider even when a fresh answer is cached.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>The first usable response, else the last cached one, else the last parsed one.</returns>
     public async Task<T> FetchAsync<T>(
@@ -83,13 +99,14 @@ public sealed class ResilientFetcher(
         Func<T, bool> isUsable,
         bool useCache,
         int maxAttempts,
+        bool refresh,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(fetch);
         ArgumentNullException.ThrowIfNull(parse);
         ArgumentNullException.ThrowIfNull(isUsable);
 
-        if (useCache && cache.TryGet(key, out CachedResponse fresh) && time.GetUtcNow() - fresh.StoredAt < FreshFor)
+        if (useCache && !refresh && cache.TryGet(key, out CachedResponse fresh) && time.GetUtcNow() - fresh.StoredAt < FreshFor)
         {
             return parse(fresh.Json);
         }
@@ -97,7 +114,7 @@ public sealed class ResilientFetcher(
         bool hasParsed = false;
         T lastParsed = default!;
         Exception? lastError = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        for (int attempt = 1; attempt <= maxAttempts && !IsPaused; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -120,6 +137,13 @@ public sealed class ResilientFetcher(
             catch (HttpRequestException ex)
             {
                 lastError = ex;
+                if (IsRefusal(ex))
+                {
+                    // Insisting would only extend the block: stop all queries for a while.
+                    Interlocked.Exchange(ref _pausedUntilTicks, (time.GetUtcNow() + BlockedPause).UtcTicks);
+                    logger.LogWarning("The provider refused a request ({Reason}), all queries paused for {Pause}", ex.StatusCode?.ToString() ?? ex.InnerException?.Message, BlockedPause);
+                    break;
+                }
             }
             catch (Newtonsoft.Json.JsonException ex)
             {
@@ -131,7 +155,7 @@ public sealed class ResilientFetcher(
                 lastError = ex;
             }
 
-            if (attempt < maxAttempts)
+            if (attempt < maxAttempts && !IsPaused)
             {
                 await _delay(_delays[Math.Min(attempt - 1, _delays.Length - 1)], cancellationToken).ConfigureAwait(false);
             }
@@ -151,6 +175,20 @@ public sealed class ResilientFetcher(
             return lastParsed;
         }
 
-        throw new HttpRequestException($"The provider did not answer after {maxAttempts} attempts.", lastError);
+        throw new HttpRequestException(
+            IsPaused ? "Provider queries are paused after a refusal." : $"The provider did not answer after {maxAttempts} attempts.",
+            lastError);
+    }
+
+    /// <summary>
+    /// Tells whether an error means that the provider refuses us, as opposed to a transient failure.
+    /// </summary>
+    /// <param name="ex">The request error.</param>
+    /// <returns><c>true</c> for 401, 403, 429, 444 or a refused connection.</returns>
+    public static bool IsRefusal(HttpRequestException ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests or (HttpStatusCode)444
+            || ex.InnerException is SocketException { SocketErrorCode: SocketError.ConnectionRefused };
     }
 }
