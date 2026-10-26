@@ -39,12 +39,15 @@ namespace Jellyfin.Xtream.Client;
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDisposable, IXtreamClient
 {
+    // During a catalog refresh, a failed list keeps its cached answer: few attempts are enough.
+    private const int RefreshMaxAttempts = 3;
+
+    private static readonly AsyncLocal<bool> _refreshing = new();
+
     private readonly JsonSerializerSettings _serializerSettings = new()
     {
         Error = NullableEventHandler(logger),
     };
-
-    private static readonly AsyncLocal<bool> _refreshing = new();
 
     private readonly ResilientFetcher _fetcher = new(new ApiResponseCache(CacheDirectory, TimeProvider.System), TimeProvider.System, logger);
 
@@ -156,7 +159,7 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
             json => JsonConvert.DeserializeObject<T>(json, _serializerSettings)!,
             isUsable,
             useCache,
-            maxAttempts,
+            _refreshing.Value ? Math.Min(maxAttempts, RefreshMaxAttempts) : maxAttempts,
             _refreshing.Value,
             cancellationToken);
     }

@@ -35,6 +35,9 @@ namespace Jellyfin.Xtream.Tasks;
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 public class PrefetchCatalogTask(IXtreamClient xtreamClient, ILogger<PrefetchCatalogTask> logger) : IScheduledTask
 {
+    // Spreads the requests: some providers block the address of clients that send too many at once.
+    private static readonly TimeSpan _pauseBetweenLists = TimeSpan.FromSeconds(1);
+
     /// <inheritdoc />
     public string Name => "Prefetch Xtream catalog";
 
@@ -117,6 +120,10 @@ public class PrefetchCatalogTask(IXtreamClient xtreamClient, ILogger<PrefetchCat
                 }
 
                 progress.Report(100.0 * (i + 1) / steps.Count);
+                if (i + 1 < steps.Count)
+                {
+                    await Task.Delay(_pauseBetweenLists, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 
