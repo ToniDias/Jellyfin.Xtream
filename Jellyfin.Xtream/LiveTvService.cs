@@ -29,6 +29,7 @@ using MediaBrowser.Controller.LiveTv;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace Jellyfin.Xtream;
 
@@ -46,6 +47,8 @@ namespace Jellyfin.Xtream;
 public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory httpClientFactory, ILogger<LiveTvService> logger, IMemoryCache memoryCache, IXtreamClient xtreamClient) : ILiveTvService, ISupportsDirectStreamProvider
 {
     private readonly EpgGuard _epgGuard = new(TimeProvider.System);
+
+    private readonly ApiResponseCache _savedGuides = new(GuideDirectory, TimeProvider.System);
 
     /// <inheritdoc />
     public string Name => "Xtream Live";
@@ -182,24 +185,33 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
         {
             items = new List<ProgramInfo>();
             Plugin plugin = Plugin.Instance;
-            if (!_epgGuard.ShouldQuery(streamId))
-            {
-                return items;
-            }
 
-            EpgListings epgs;
-            try
+            // The guide of each channel is saved on disk and asked again only when it is about to run out.
+            string savedKey = $"{plugin.Creds.BaseUrl}|{plugin.Creds.UserName}|epg|{streamId}";
+            EpgListings? saved = _savedGuides.TryGet(savedKey, out CachedResponse cached)
+                ? JsonConvert.DeserializeObject<EpgListings>(cached.Json)
+                : null;
+
+            EpgListings? epgs = saved;
+            if (EpgCoverage.NeedsRefresh(saved, DateTime.UtcNow) && _epgGuard.ShouldQuery(streamId))
             {
-                epgs = await xtreamClient.GetEpgInfoAsync(plugin.Creds, streamId, cancellationToken).ConfigureAwait(false);
-                _epgGuard.ReportSuccess();
-            }
-            catch (HttpRequestException ex)
-            {
-                if (_epgGuard.ReportFailure())
+                try
                 {
-                    logger.LogWarning(ex, "The provider refused {Count} guide requests in a row, guide paused for {Pause}", EpgGuard.MaxConsecutiveFailures, EpgGuard.Pause);
+                    epgs = await xtreamClient.GetEpgInfoAsync(plugin.Creds, streamId, cancellationToken).ConfigureAwait(false);
+                    _epgGuard.ReportSuccess();
+                    _savedGuides.Store(savedKey, JsonConvert.SerializeObject(epgs));
                 }
+                catch (HttpRequestException ex)
+                {
+                    if (_epgGuard.ReportFailure())
+                    {
+                        logger.LogWarning(ex, "The provider refused {Count} guide requests in a row, guide paused for {Pause}", EpgGuard.MaxConsecutiveFailures, EpgGuard.Pause);
+                    }
+                }
+            }
 
+            if (epgs is null)
+            {
                 return items;
             }
 
@@ -254,5 +266,17 @@ public class LiveTvService(IServerApplicationHost appHost, IHttpClientFactory ht
 
         stream.ConsumerCount++;
         return stream;
+    }
+
+    private static string? GuideDirectory()
+    {
+        try
+        {
+            return System.IO.Path.Combine(Plugin.Instance.DataFolderPath, "guide-cache");
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 }

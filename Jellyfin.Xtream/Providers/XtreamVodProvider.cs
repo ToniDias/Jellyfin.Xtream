@@ -47,22 +47,35 @@ public class XtreamVodProvider(ILogger<VodChannel> logger, IProviderManager prov
     /// <inheritdoc/>
     public string Name => ProviderName;
 
+    /// <summary>
+    /// Tells whether a refresh may ask the provider for the details of a movie. Jellyfin refreshes every movie
+    /// it lists for the first time: asking the provider then would send one request per movie of a category.
+    /// Only a refresh asked by hand on a movie ("Refresh metadata") queries it.
+    /// </summary>
+    /// <param name="mode">The refresh mode.</param>
+    /// <returns><c>true</c> when the provider may be queried.</returns>
+    public static bool QueriesProvider(MetadataRefreshMode mode) => mode == MetadataRefreshMode.FullRefresh;
+
     /// <inheritdoc/>
     public async Task<ItemUpdateType> FetchAsync(Movie item, MetadataRefreshOptions options, CancellationToken cancellationToken)
     {
         string? idStr = item.GetProviderId(ProviderName);
-        if (idStr is not null)
+        if (idStr is null)
+        {
+            return ItemUpdateType.MetadataImport;
+        }
+
+        VodStreamInfo? vod = null;
+        if (QueriesProvider(options.MetadataRefreshMode))
         {
             logger.LogDebug("Getting metadata for movie {Id}", idStr);
             int id = int.Parse(idStr, CultureInfo.InvariantCulture);
-            VodStreamInfo vod = await xtreamClient.GetVodInfoAsync(Plugin.Instance.Creds, id, cancellationToken).ConfigureAwait(false);
-            VodInfo? i = vod.Info;
+            vod = await xtreamClient.GetVodInfoAsync(Plugin.Instance.Creds, id, cancellationToken).ConfigureAwait(false);
+        }
 
-            if (i is null)
-            {
-                return ItemUpdateType.None;
-            }
-
+        VodInfo? i = vod?.Info;
+        if (i is not null)
+        {
             item.Overview ??= i.Plot;
             item.PremiereDate ??= i.ReleaseDate;
             item.RunTimeTicks ??= i.DurationSecs * TimeSpan.TicksPerSecond;
@@ -72,38 +85,38 @@ public class XtreamVodProvider(ILogger<VodChannel> logger, IProviderManager prov
             {
                 item.Genres ??= genres.Split(',').Select(genre => genre.Trim()).ToArray();
             }
+        }
 
-            if (!item.HasProviderId(MetadataProvider.Tmdb))
+        if (!item.HasProviderId(MetadataProvider.Tmdb))
+        {
+            if (i?.TmdbId is int tmdbId)
             {
-                if (i.TmdbId is int tmdbId)
+                options.ReplaceAllMetadata = true;
+                item.SetProviderId(MetadataProvider.Tmdb, tmdbId.ToString(CultureInfo.InvariantCulture));
+            }
+            else if (Plugin.Instance.Configuration.IsTmdbVodOverride)
+            {
+                // Try to fetch the TMDB id to get proper metadata.
+                RemoteSearchQuery<MovieInfo> query = new()
                 {
-                    options.ReplaceAllMetadata = true;
-                    item.SetProviderId(MetadataProvider.Tmdb, tmdbId.ToString(CultureInfo.InvariantCulture));
-                }
-                else if (Plugin.Instance.Configuration.IsTmdbVodOverride)
+                    SearchInfo = new()
+                    {
+                        Name = vod?.MovieData?.Name is string name ? StreamService.ParseName(name).Title : item.Name,
+                        Year = item.PremiereDate?.Year,
+                    },
+                    SearchProviderName = "TheMovieDb",
+                };
+                IEnumerable<RemoteSearchResult> results = await providerManager.GetRemoteSearchResults<Movie, MovieInfo>(query, cancellationToken).ConfigureAwait(false);
+                if (results.Any())
                 {
-                    // Try to fetch the TMDB id to get proper metadata.
-                    RemoteSearchQuery<MovieInfo> query = new()
+                    RemoteSearchResult tmdbMovie = results.First();
+                    if (tmdbMovie.HasProviderId(MetadataProvider.Tmdb))
                     {
-                        SearchInfo = new()
+                        string? queryId = tmdbMovie.GetProviderId(MetadataProvider.Tmdb);
+                        if (queryId is not null)
                         {
-                            Name = StreamService.ParseName(vod.MovieData?.Name ?? string.Empty).Title,
-                            Year = item.PremiereDate?.Year,
-                        },
-                        SearchProviderName = "TheMovieDb",
-                    };
-                    IEnumerable<RemoteSearchResult> results = await providerManager.GetRemoteSearchResults<Movie, MovieInfo>(query, cancellationToken).ConfigureAwait(false);
-                    if (results.Any())
-                    {
-                        RemoteSearchResult tmdbMovie = results.First();
-                        if (tmdbMovie.HasProviderId(MetadataProvider.Tmdb))
-                        {
-                            string? queryId = tmdbMovie.GetProviderId(MetadataProvider.Tmdb);
-                            if (queryId is not null)
-                            {
-                                options.ReplaceAllMetadata = true;
-                                item.SetProviderId(MetadataProvider.Tmdb, queryId);
-                            }
+                            options.ReplaceAllMetadata = true;
+                            item.SetProviderId(MetadataProvider.Tmdb, queryId);
                         }
                     }
                 }

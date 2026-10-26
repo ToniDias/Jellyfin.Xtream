@@ -154,6 +154,13 @@ public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSou
             ProviderIds = { { XtreamVodProvider.ProviderName, stream.StreamId.ToString(CultureInfo.InvariantCulture) } },
         };
 
+        // The list already carries the TMDB identifier: Jellyfin then takes the overview and images from TMDB,
+        // without asking the provider for the details of every movie.
+        if (StreamService.ParseTmdbId(stream.Tmdb) is string tmdbId)
+        {
+            result.ProviderIds[nameof(MetadataProvider.Tmdb)] = tmdbId;
+        }
+
         return Task.FromResult(result);
     }
 

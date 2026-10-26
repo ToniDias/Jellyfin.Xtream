@@ -388,6 +388,16 @@ public partial class StreamService(IXtreamClient xtreamClient)
         type == StreamType.Live ? ToGuid(MediaSourcePrefix, (int)type, id, 0).ToString() : string.Empty;
 
     /// <summary>
+    /// Reads the TMDB identifier given by the provider in its lists.
+    /// </summary>
+    /// <param name="tmdb">The raw value, a number, a numeric string or nothing.</param>
+    /// <returns>The identifier, or <c>null</c> when the value is not a positive number.</returns>
+    public static string? ParseTmdbId(string? tmdb) =>
+        int.TryParse(tmdb, NumberStyles.None, CultureInfo.InvariantCulture, out int id) && id > 0
+            ? id.ToString(CultureInfo.InvariantCulture)
+            : null;
+
+    /// <summary>
     /// Gets the media source information for the given Xtream stream.
     /// </summary>
     /// <param name="type">The stream media type.</param>

@@ -58,4 +58,7 @@ public class StreamInfo
 
     [JsonProperty("tv_archive_duration")]
     public int TvArchiveDuration { get; set; }
+
+    [JsonProperty("tmdb")]
+    public string? Tmdb { get; set; }
 }

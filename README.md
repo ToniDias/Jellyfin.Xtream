@@ -7,7 +7,7 @@
 
 The Jellyfin.Xtream plugin can be used to integrate the content provided by an [Xtream-compatible API](https://xtream-ui.org/api-xtreamui-xtreamcode/) in your [Jellyfin](https://jellyfin.org/) instance.
 
-## This fork: Jellyfin 12 support (0.10.0)
+## This fork: Jellyfin 12 support (0.10.2)
 
 This fork of [Kevinjil/Jellyfin.Xtream](https://github.com/Kevinjil/Jellyfin.Xtream) targets **Jellyfin 12.3** (.NET 10) and adds:
 
@@ -15,7 +15,9 @@ This fork of [Kevinjil/Jellyfin.Xtream](https://github.com/Kevinjil/Jellyfin.Xtr
 * **Resilient provider queries.** Some providers answer the same request with an empty list most of the time. Lists are retried (up to 10 attempts), the last usable answer is kept in memory and on disk (`api-cache` in the plugin data folder) and served when the provider gives nothing usable. Channels expose a cache key that changes after a degraded answer, so Jellyfin does not keep an empty folder for hours (its channel cache lasts 3 hours).
 * **Custom folder names** for Video On-Demand, Series and Catch-up (Credentials page, "Display names").
 * **Category folders.** Rules such as `Anime: ANIME, MANGA` or `French: FR` (Credentials page, "Category folders") group the Video On-Demand and Series categories into folders; inside a folder the tags are removed from the category names. `FR - Title` language prefixes become tags.
-* **Prefetch task** ("Prefetch Xtream catalog", nightly at 4:00 and at startup): loads the selected categories into the cache, which stays fresh for 24 hours, so browsing does not wait for the provider.
+* **Prefetch task** ("Prefetch Xtream catalog", at startup and every 3 days): loads the selected categories into the cache, which stays fresh for 3 days, so browsing does not wait for the provider. Movies take their TMDB id from the list (overview and images from TMDB); the provider is asked for the details of a movie only when its metadata is refreshed by hand, and for a series when it is opened, one request per second at most.
+* **Saved guide.** Each channel keeps its guide on disk (`guide-cache` in the plugin data folder) and asks the provider again only when less than one day of programs is left, one request every 500 ms.
+* **Refresh buttons.** "Refresh catalog" and "Refresh guide" on the Credentials page queue the matching tasks by hand.
 * **Provider protection.** A guide refresh skips channels without a guide id, pauses the guide after 5 failures in a row and uses a 15 s timeout. When the provider refuses a request (401, 403, 429, 444 or connection refused), all queries pause for 10 minutes and only the cache is served: insisting would extend an address block.
 * Live channels without a name no longer abort the whole channel list.
 

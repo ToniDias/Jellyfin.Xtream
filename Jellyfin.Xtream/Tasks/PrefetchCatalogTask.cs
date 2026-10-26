@@ -27,8 +27,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Xtream.Tasks;
 
 /// <summary>
-/// Loads the provider catalog of the selected categories into the plugin cache, every night and after
-/// each configuration change, so that opening a folder does not wait for a slow or flaky provider.
+/// Loads the provider catalog of the selected categories into the plugin cache, at startup, every 3 days and
+/// after each configuration change, so that opening a folder does not wait for a slow or flaky provider.
 /// Only lists are loaded (categories, movies, series); the details of a series are loaded when it is opened.
 /// </summary>
 /// <param name="xtreamClient">Instance of the <see cref="IXtreamClient"/> interface.</param>
@@ -57,8 +57,8 @@ public class PrefetchCatalogTask(IXtreamClient xtreamClient, ILogger<PrefetchCat
         [
             new TaskTriggerInfo
             {
-                Type = TaskTriggerInfoType.DailyTrigger,
-                TimeOfDayTicks = TimeSpan.FromHours(4).Ticks,
+                Type = TaskTriggerInfoType.IntervalTrigger,
+                IntervalTicks = TimeSpan.FromDays(3).Ticks,
             },
             new TaskTriggerInfo
             {

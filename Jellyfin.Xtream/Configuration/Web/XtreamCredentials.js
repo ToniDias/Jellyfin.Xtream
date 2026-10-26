@@ -50,6 +50,15 @@ export default function (view) {
     };
     reloadStatus();
 
+    const queue = (path, message) => (e) => {
+      e.preventDefault();
+      ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl(path) })
+        .then(() => Dashboard.alert(message))
+        .catch(() => Dashboard.alert('Failed. Check server logs.'));
+    };
+    view.querySelector('#RefreshCatalog').addEventListener('click', queue('Xtream/RefreshCatalog', 'Catalog refresh started.'));
+    view.querySelector('#RefreshGuide').addEventListener('click', queue('Xtream/RefreshGuide', 'Guide refresh started.'));
+
     view.querySelector('#UserAgentFromBrowser').addEventListener('click', (e) => {
       e.preventDefault();
       view.querySelector('#UserAgent').value = navigator.userAgent;

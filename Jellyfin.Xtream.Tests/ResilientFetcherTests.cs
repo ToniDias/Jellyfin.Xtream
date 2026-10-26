@@ -71,7 +71,7 @@ public class ResilientFetcherTests
     public async Task ServesTheLastGoodAnswerWhenEveryAttemptIsEmpty()
     {
         await Fetch(Answers("[7]"));
-        _time.Advance(TimeSpan.FromHours(25));
+        _time.Advance(TimeSpan.FromDays(3) + TimeSpan.FromHours(1));
 
         List<int> result = await Fetch(Answers("[]"));
 
@@ -101,7 +101,7 @@ public class ResilientFetcherTests
     public async Task AFreshCachedAnswerSkipsTheProvider()
     {
         await Fetch(Answers("[3]"));
-        _time.Advance(TimeSpan.FromHours(23));
+        _time.Advance(TimeSpan.FromDays(2));
 
         int calls = 0;
         List<int> result = await Fetch(_ => { calls++; return Task.FromResult("[4]"); });
@@ -114,7 +114,7 @@ public class ResilientFetcherTests
     public async Task AnExpiredCachedAnswerIsRefreshed()
     {
         await Fetch(Answers("[3]"));
-        _time.Advance(TimeSpan.FromHours(25));
+        _time.Advance(TimeSpan.FromDays(3) + TimeSpan.FromHours(1));
 
         List<int> result = await Fetch(Answers("[4]"));
 
@@ -185,7 +185,7 @@ public class ResilientFetcherTests
     public async Task DuringAPauseTheCacheIsStillServed()
     {
         await Fetch(Answers("[8]"));
-        _time.Advance(TimeSpan.FromHours(25));
+        _time.Advance(TimeSpan.FromDays(3) + TimeSpan.FromHours(1));
         await Assert.ThrowsAnyAsync<Exception>(() => _fetcher.FetchAsync("other", _ => throw new HttpRequestException("x", null, System.Net.HttpStatusCode.Forbidden), j => j, _ => true, true, 3, false, default));
 
         List<int> result = await Fetch(Answers("[9]"));

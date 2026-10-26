@@ -51,6 +51,12 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
 
     private readonly ResilientFetcher _fetcher = new(new ApiResponseCache(CacheDirectory, TimeProvider.System), TimeProvider.System, logger);
 
+    // Details of a movie or a series: Jellyfin asks for every new movie of a category at once.
+    private readonly RequestPacer _detailsPacer = new(TimeSpan.FromSeconds(1), TimeProvider.System);
+
+    // Guide: one request per channel during a guide refresh.
+    private readonly RequestPacer _guidePacer = new(TimeSpan.FromMilliseconds(500), TimeProvider.System);
+
     /// <inheritdoc />
     public int DegradedGeneration => _fetcher.DegradedGeneration;
 
@@ -142,7 +148,8 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         CancellationToken cancellationToken,
         bool useCache = true,
         int maxAttempts = ResilientFetcher.DefaultMaxAttempts,
-        int timeoutSeconds = 60)
+        int timeoutSeconds = 60,
+        RequestPacer? pacer = null)
     {
         Uri uri = new Uri($"{connectionInfo.BaseUrl}/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}{query}");
 
@@ -152,6 +159,11 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
             key,
             async ct =>
             {
+                if (pacer is not null)
+                {
+                    await pacer.WaitAsync(ct).ConfigureAwait(false);
+                }
+
                 using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
                 return await client.GetStringAsync(uri, timeout.Token).ConfigureAwait(false);
@@ -173,13 +185,13 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
         QueryApi<List<Series>>(connectionInfo, $"&action=get_series&category_id={categoryId}", HasItems, cancellationToken);
 
     public Task<SeriesStreamInfo> GetSeriesStreamsBySeriesAsync(ConnectionInfo connectionInfo, int seriesId, CancellationToken cancellationToken) =>
-        QueryApi<SeriesStreamInfo>(connectionInfo, $"&action=get_series_info&series_id={seriesId}", series => series?.Episodes is { Count: > 0 }, cancellationToken);
+        QueryApi<SeriesStreamInfo>(connectionInfo, $"&action=get_series_info&series_id={seriesId}", series => series?.Episodes is { Count: > 0 }, cancellationToken, pacer: _detailsPacer);
 
     public Task<List<StreamInfo>> GetVodStreamsByCategoryAsync(ConnectionInfo connectionInfo, int categoryId, CancellationToken cancellationToken) =>
         QueryApi<List<StreamInfo>>(connectionInfo, $"&action=get_vod_streams&category_id={categoryId}", HasItems, cancellationToken);
 
     public Task<VodStreamInfo> GetVodInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken) =>
-        QueryApi<VodStreamInfo>(connectionInfo, $"&action=get_vod_info&vod_id={streamId}", vod => vod?.Info is not null || vod?.MovieData is not null, cancellationToken);
+        QueryApi<VodStreamInfo>(connectionInfo, $"&action=get_vod_info&vod_id={streamId}", vod => vod?.Info is not null || vod?.MovieData is not null, cancellationToken, pacer: _detailsPacer);
 
     public Task<List<StreamInfo>> GetLiveStreamsAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
         QueryApi<List<StreamInfo>>(connectionInfo, "&action=get_live_streams", HasItems, cancellationToken);
@@ -198,7 +210,7 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
 
     // The guide can legitimately be empty and is cached by the Live TV service: one attempt, no cache.
     public Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken) =>
-        QueryApi<EpgListings>(connectionInfo, $"&action=get_simple_data_table&stream_id={streamId}", _ => true, cancellationToken, useCache: false, maxAttempts: 1, timeoutSeconds: 15);
+        QueryApi<EpgListings>(connectionInfo, $"&action=get_simple_data_table&stream_id={streamId}", _ => true, cancellationToken, useCache: false, maxAttempts: 1, timeoutSeconds: 15, pacer: _guidePacer);
 
     /// <summary>
     /// Dispose the HTTP client.
@@ -207,6 +219,8 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
     protected virtual void Dispose(bool b)
     {
         client?.Dispose();
+        _detailsPacer.Dispose();
+        _guidePacer.Dispose();
     }
 
     /// <inheritdoc />

@@ -70,6 +70,30 @@ public class XtreamController(IXtreamClient xtreamClient) : ControllerBase
         };
 
     /// <summary>
+    /// Queues the catalog prefetch task (categories, movie and series lists).
+    /// </summary>
+    /// <returns>No content.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpPost("RefreshCatalog")]
+    public ActionResult RefreshCatalog()
+    {
+        Plugin.Instance.TaskService.CancelIfRunningAndQueue("Jellyfin.Xtream", "Jellyfin.Xtream.Tasks.PrefetchCatalogTask");
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Queues the Jellyfin guide refresh. Only channels whose saved guide is about to run out are asked.
+    /// </summary>
+    /// <returns>No content.</returns>
+    [Authorize(Policy = "RequiresElevation")]
+    [HttpPost("RefreshGuide")]
+    public ActionResult RefreshGuide()
+    {
+        Plugin.Instance.TaskService.CancelIfRunningAndQueue("Jellyfin.LiveTv", "Jellyfin.LiveTv.Guide.RefreshGuideScheduledTask");
+        return NoContent();
+    }
+
+    /// <summary>
     /// Test the configured provider.
     /// </summary>
     /// <param name="cancellationToken">The cancellation token for cancelling requests.</param>

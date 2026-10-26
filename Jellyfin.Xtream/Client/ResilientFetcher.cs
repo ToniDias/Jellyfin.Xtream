@@ -69,9 +69,9 @@ public sealed class ResilientFetcher(
 
     /// <summary>
     /// Gets or sets how long a cached response is served without asking the provider again.
-    /// The prefetch task refreshes the catalog every night, so browsing is served from the cache.
+    /// The prefetch task refreshes the catalog at startup and every 3 days, so browsing is served from the cache.
     /// </summary>
-    public TimeSpan FreshFor { get; set; } = TimeSpan.FromHours(24);
+    public TimeSpan FreshFor { get; set; } = TimeSpan.FromDays(3);
 
     /// <summary>
     /// Gets a counter increased each time a query ends without a usable response.
