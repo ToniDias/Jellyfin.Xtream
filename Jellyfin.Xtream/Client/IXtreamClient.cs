@@ -30,11 +30,24 @@ public interface IXtreamClient
     int DegradedGeneration { get; }
 
     /// <summary>
+    /// Gets a value indicating whether queries are paused because the provider refused a recent one.
+    /// </summary>
+    bool IsPaused { get; }
+
+    /// <summary>
     /// Asks the provider again for every query made until the returned scope is disposed,
     /// even when a fresh answer is cached. Used by the catalog prefetch task.
     /// </summary>
     /// <returns>The refresh scope.</returns>
     IDisposable StartCatalogRefresh();
+
+    /// <summary>
+    /// Reads the details of a series from the cache only, without asking the provider.
+    /// </summary>
+    /// <param name="connectionInfo">The provider account.</param>
+    /// <param name="seriesId">The Xtream id of the series.</param>
+    /// <returns>The cached details, or <c>null</c> when the series was never opened.</returns>
+    SeriesStreamInfo? GetCachedSeriesStreams(ConnectionInfo connectionInfo, int seriesId);
 
     Task<EpgListings> GetEpgInfoAsync(ConnectionInfo connectionInfo, int streamId, CancellationToken cancellationToken);
 

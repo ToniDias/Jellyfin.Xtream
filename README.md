@@ -7,7 +7,7 @@
 
 The Jellyfin.Xtream plugin can be used to integrate the content provided by an [Xtream-compatible API](https://xtream-ui.org/api-xtreamui-xtreamcode/) in your [Jellyfin](https://jellyfin.org/) instance.
 
-## This fork: Jellyfin 12 support (0.10.2)
+## This fork: Jellyfin 12 support (0.11.0)
 
 This fork of [Kevinjil/Jellyfin.Xtream](https://github.com/Kevinjil/Jellyfin.Xtream) targets **Jellyfin 12.3** (.NET 10) and adds:
 
@@ -17,6 +17,8 @@ This fork of [Kevinjil/Jellyfin.Xtream](https://github.com/Kevinjil/Jellyfin.Xtr
 * **Category folders.** Rules such as `Anime: ANIME, MANGA` or `French: FR` (Credentials page, "Category folders") group the Video On-Demand and Series categories into folders; inside a folder the tags are removed from the category names. `FR - Title` language prefixes become tags.
 * **Prefetch task** ("Prefetch Xtream catalog", at startup and every 3 days): loads the selected categories into the cache, which stays fresh for 3 days, so browsing does not wait for the provider. Movies take their TMDB id from the list (overview and images from TMDB); the provider is asked for the details of a movie only when its metadata is refreshed by hand, and for a series when it is opened, one request per second at most.
 * **Saved guide.** Each channel keeps its guide on disk (`guide-cache` in the plugin data folder) and asks the provider again only when less than one day of programs is left, one request every 500 ms.
+* **Nightly indexing** ("Index Xtream catalog", every night from 1:00 to 6:00): opens the selected categories one at a time, never indexed first, with a random pause of 3 to 10 minutes (`IndexMinPauseSeconds` and `IndexMaxPauseSeconds` in the configuration file), exactly as browsing them would. Jellyfin then knows every movie and series of the selection and its search finds them. At most one provider request per category, none when its list is cached; series details, episodes and guide are never asked. Progress is kept in `index-state.json`.
+* **Episode titles from TMDB.** Channel episodes have no series item, so Jellyfin cannot match them with TMDB on its own. The plugin reads the TMDB id of the series from its cached details and asks the Jellyfin TMDB provider for the title, overview and air date of each episode, in the metadata language of the server. No provider request. Episodes saved by older versions are refreshed once.
 * **Refresh buttons.** "Refresh catalog" and "Refresh guide" on the Credentials page queue the matching tasks by hand.
 * **Provider protection.** A guide refresh skips channels without a guide id, pauses the guide after 5 failures in a row and uses a 15 s timeout. When the provider refuses a request (401, 403, 429, 444 or connection refused), all queries pause for 10 minutes and only the cache is served: insisting would extend an address block.
 * Live channels without a name no longer abort the whole channel list.

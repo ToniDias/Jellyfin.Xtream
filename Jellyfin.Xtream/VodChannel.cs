@@ -37,8 +37,13 @@ namespace Jellyfin.Xtream;
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 public class VodChannel(ILogger<VodChannel> logger) : IChannel, IDisableMediaSourceDisplay, IHasCacheKey
 {
+    /// <summary>
+    /// The name of the channel when no custom name is configured.
+    /// </summary>
+    public const string DefaultName = "Xtream Video On-Demand";
+
     /// <inheritdoc />
-    public string? Name => Plugin.ChannelName(config => config.VodChannelName, "Xtream Video On-Demand");
+    public string? Name => Plugin.ChannelName(config => config.VodChannelName, DefaultName);
 
     /// <inheritdoc />
     public string? Description => "Video On-Demand streamed from the Xtream-compatible server.";

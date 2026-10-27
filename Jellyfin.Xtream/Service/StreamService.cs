@@ -107,6 +107,12 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// </summary>
     public static readonly DateTime MediaSourceFormatDate = new(2026, 10, 26, 0, 0, 0, DateTimeKind.Utc);
 
+    /// <summary>
+    /// The date of the current episode format. Episodes report it as their modification date, so Jellyfin
+    /// refreshes their metadata once after the upgrade that takes their titles and overviews from TMDB.
+    /// </summary>
+    public static readonly DateTime EpisodeFormatDate = new(2026, 10, 27, 0, 0, 0, DateTimeKind.Utc);
+
     private static readonly Regex _tagRegex = TagRegex();
 
     private static readonly Regex _languagePrefixRegex = LanguagePrefixRegex();
@@ -386,6 +392,36 @@ public partial class StreamService(IXtreamClient xtreamClient)
     /// <returns>The media source identifier.</returns>
     public static string MediaSourceId(StreamType type, int id) =>
         type == StreamType.Live ? ToGuid(MediaSourcePrefix, (int)type, id, 0).ToString() : string.Empty;
+
+    /// <summary>
+    /// Reads the prefix (the kind of item) of an identifier made by <see cref="ToGuid"/>.
+    /// </summary>
+    /// <param name="id">The identifier.</param>
+    /// <returns>The prefix.</returns>
+    public static int FromGuidPrefix(Guid id)
+    {
+        FromGuid(id, out int prefix, out _, out _, out _);
+        return prefix;
+    }
+
+    /// <summary>
+    /// Reads the series and season numbers from the identifier of a season folder.
+    /// </summary>
+    /// <param name="externalId">The identifier given to Jellyfin for the season folder.</param>
+    /// <param name="seriesId">The Xtream id of the series.</param>
+    /// <param name="seasonId">The season number.</param>
+    /// <returns><c>true</c> when the identifier is the one of a season folder.</returns>
+    public static bool TryParseSeason(string? externalId, out int seriesId, out int seasonId)
+    {
+        seriesId = seasonId = 0;
+        if (!Guid.TryParse(externalId, out Guid id))
+        {
+            return false;
+        }
+
+        FromGuid(id, out int prefix, out _, out seriesId, out seasonId);
+        return prefix == SeasonPrefix;
+    }
 
     /// <summary>
     /// Reads the TMDB identifier given by the provider in its lists.

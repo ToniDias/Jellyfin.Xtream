@@ -60,6 +60,8 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
     /// <inheritdoc />
     public int DegradedGeneration => _fetcher.DegradedGeneration;
 
+    public bool IsPaused => _fetcher.IsPaused;
+
     /// <inheritdoc />
     public IDisposable StartCatalogRefresh()
     {
@@ -153,10 +155,8 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
     {
         Uri uri = new Uri($"{connectionInfo.BaseUrl}/player_api.php?username={connectionInfo.UserName}&password={connectionInfo.Password}{query}");
 
-        // The key identifies the account and the query, without the password.
-        string key = $"{connectionInfo.BaseUrl}|{connectionInfo.UserName}|{query}";
         return _fetcher.FetchAsync(
-            key,
+            CacheKey(connectionInfo, query),
             async ct =>
             {
                 if (pacer is not null)
@@ -176,6 +176,10 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
             cancellationToken);
     }
 
+    // The key identifies the account and the query, without the password.
+    private static string CacheKey(ConnectionInfo connectionInfo, string query) =>
+        $"{connectionInfo.BaseUrl}|{connectionInfo.UserName}|{query}";
+
     private static bool HasItems<TItem>(List<TItem>? items) => items is { Count: > 0 };
 
     public Task<PlayerApi> GetUserAndServerInfoAsync(ConnectionInfo connectionInfo, CancellationToken cancellationToken) =>
@@ -186,6 +190,11 @@ public class XtreamClient(HttpClient client, ILogger<XtreamClient> logger) : IDi
 
     public Task<SeriesStreamInfo> GetSeriesStreamsBySeriesAsync(ConnectionInfo connectionInfo, int seriesId, CancellationToken cancellationToken) =>
         QueryApi<SeriesStreamInfo>(connectionInfo, $"&action=get_series_info&series_id={seriesId}", series => series?.Episodes is { Count: > 0 }, cancellationToken, pacer: _detailsPacer);
+
+    public SeriesStreamInfo? GetCachedSeriesStreams(ConnectionInfo connectionInfo, int seriesId) =>
+        _fetcher.TryGetCached(CacheKey(connectionInfo, $"&action=get_series_info&series_id={seriesId}"), json => JsonConvert.DeserializeObject<SeriesStreamInfo>(json, _serializerSettings)!, out SeriesStreamInfo series)
+            ? series
+            : null;
 
     public Task<List<StreamInfo>> GetVodStreamsByCategoryAsync(ConnectionInfo connectionInfo, int categoryId, CancellationToken cancellationToken) =>
         QueryApi<List<StreamInfo>>(connectionInfo, $"&action=get_vod_streams&category_id={categoryId}", HasItems, cancellationToken);

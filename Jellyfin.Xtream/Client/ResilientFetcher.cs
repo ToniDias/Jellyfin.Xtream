@@ -20,6 +20,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace Jellyfin.Xtream.Client;
 
@@ -78,6 +79,34 @@ public sealed class ResilientFetcher(
     /// Channels use it in their cache key, so Jellyfin does not keep a degraded answer for hours.
     /// </summary>
     public int DegradedGeneration => Volatile.Read(ref _degradedGeneration);
+
+    /// <summary>
+    /// Reads a cached response, whatever its age, without ever asking the provider.
+    /// </summary>
+    /// <typeparam name="T">The parsed response type.</typeparam>
+    /// <param name="key">The cache key, without credentials.</param>
+    /// <param name="parse">Parses the raw response.</param>
+    /// <param name="value">The parsed response, when one is cached.</param>
+    /// <returns><c>true</c> when a response is cached and parses.</returns>
+    public bool TryGetCached<T>(string key, Func<string, T> parse, out T value)
+    {
+        ArgumentNullException.ThrowIfNull(parse);
+        value = default!;
+        if (!cache.TryGet(key, out CachedResponse cached))
+        {
+            return false;
+        }
+
+        try
+        {
+            value = parse(cached.Json);
+            return value is not null;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Fetches and parses a provider response.

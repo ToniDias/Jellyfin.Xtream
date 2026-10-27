@@ -37,8 +37,13 @@ namespace Jellyfin.Xtream;
 /// <param name="logger">Instance of the <see cref="ILogger"/> interface.</param>
 public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMediaSourceDisplay, IHasCacheKey
 {
+    /// <summary>
+    /// The name of the channel when no custom name is configured.
+    /// </summary>
+    public const string DefaultName = "Xtream Series";
+
     /// <inheritdoc />
-    public string? Name => Plugin.ChannelName(config => config.SeriesChannelName, "Xtream Series");
+    public string? Name => Plugin.ChannelName(config => config.SeriesChannelName, DefaultName);
 
     /// <inheritdoc />
     public string? Description => "Series streamed from the Xtream-compatible server.";
@@ -228,7 +233,7 @@ public class SeriesChannel(ILogger<SeriesChannel> logger) : IChannel, IDisableMe
         {
             ContentType = ChannelMediaContentType.Episode,
             DateCreated = episode.Added,
-            DateModified = StreamService.MediaSourceFormatDate,
+            DateModified = StreamService.EpisodeFormatDate,
             Genres = GetGenres(serie.Genre),
             Id = StreamService.ToGuid(StreamService.EpisodePrefix, 0, 0, episode.EpisodeId).ToString(),
             IndexNumber = episode.EpisodeNum,

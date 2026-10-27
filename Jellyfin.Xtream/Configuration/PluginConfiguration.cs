@@ -66,6 +66,16 @@ public class PluginConfiguration : BasePluginConfiguration
     public string CategoryGroups { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the shortest pause, in seconds, between two categories of the nightly indexing.
+    /// </summary>
+    public int IndexMinPauseSeconds { get; set; } = 180;
+
+    /// <summary>
+    /// Gets or sets the longest pause, in seconds, between two categories of the nightly indexing.
+    /// </summary>
+    public int IndexMaxPauseSeconds { get; set; } = 600;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the Catch-up channel is visible.
     /// </summary>
     public bool IsCatchupVisible { get; set; }

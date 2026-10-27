@@ -67,4 +67,7 @@ public class SeriesInfo
 
     [JsonProperty("category_id")]
     public int CategoryId { get; set; }
+
+    [JsonProperty("tmdb")]
+    public string? Tmdb { get; set; }
 }
